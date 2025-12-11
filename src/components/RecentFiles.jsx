@@ -119,7 +119,10 @@ const RecentFiles = () => {
       params.ResponseContentType = 'text/plain';
     }
 
-    const fullKey = user?.userPath ? user.userPath + file.id : file.id;
+    let fullKey = file.id;
+    if (user?.userPath && !fullKey.startsWith(user.userPath)) {
+      fullKey = user.userPath + fullKey;
+    }
     const url = s3.getSignedUrl('getObject', { ...params, Key: fullKey });
 
     setSelectedFile({

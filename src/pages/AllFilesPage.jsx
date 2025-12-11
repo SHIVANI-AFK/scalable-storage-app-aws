@@ -76,8 +76,8 @@ const AllFilesPage = () => {
     if (!data) return;
 
     if (data.length > 0) {
-      console.log("First file keys:", Object.keys(data[0]));
-      console.log("First file object:", data[0]);
+      // console.log("First file keys:", Object.keys(data[0]));
+      // console.log("First file object:", data[0]);
     }
 
     // Filter files that start with the current prefix
@@ -108,9 +108,6 @@ const AllFilesPage = () => {
 
         let url = '';
         if (s3 && user?.userPath) {
-          console.log("User Path:", user.userPath); // Debug log
-          console.log("File Name:", f.name); // Debug log
-
           // Check if the file name already contains the user path (full key vs relative path)
           // If the API returns the full key (e.g. tenant/user/file.txt), we shouldn't prepend userPath.
           // If it returns relative path (e.g. file.txt), we should.
@@ -119,8 +116,6 @@ const AllFilesPage = () => {
           if (!f.name.startsWith(user.userPath)) {
             fullKey = user.userPath + f.name;
           }
-
-          console.log("Generated Full Key:", fullKey); // Debug log
 
           const params = {
             Bucket: BUCKET_NAME,
