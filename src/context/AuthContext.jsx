@@ -103,7 +103,7 @@ export const AuthProvider = ({ children }) => {
 
             setUser(userData);
             localStorage.setItem('user_session', JSON.stringify(userData));
-
+            console.log("id_token", data.id_token);
             // Initialize S3 with the ID Token
             initializeS3(data.id_token);
 

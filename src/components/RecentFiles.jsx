@@ -7,7 +7,7 @@ import FilePreviewModal from './FilePreviewModal';
 
 const RecentFiles = () => {
   const { s3, BUCKET_NAME, user } = useAuth();
-  const { fetchFiles, loading: apiLoading } = useFileService();
+  const { fetchFiles, deleteFile, loading: apiLoading } = useFileService();
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -65,6 +65,7 @@ const RecentFiles = () => {
 
       return {
         id: f.name,
+        key: f.key || f.name, // Use normalized key
         name: f.name.split('/').pop(), // Show only filename
         count: 1, // Placeholder
         size: formatBytes(size),
@@ -83,30 +84,14 @@ const RecentFiles = () => {
     e.stopPropagation();
     if (!window.confirm(`Are you sure you want to delete "${file.name}"?`)) return;
 
-    if (!s3 || !user?.userPath) {
-      alert("Unable to delete: S3 not initialized or user path missing.");
-      return;
+    try {
+      await deleteFile(file.key || file.id);
+      // Remove from local state
+      setFiles(prev => prev.filter(f => f.id !== file.id));
+    } catch (err) {
+      console.error("Error deleting file:", err);
+      alert("Failed to delete file: " + err.message);
     }
-
-    let fullKey = file.id;
-    if (!fullKey.startsWith(user.userPath)) {
-      fullKey = user.userPath + fullKey;
-    }
-
-    const params = {
-      Bucket: BUCKET_NAME,
-      Key: fullKey
-    };
-
-    s3.deleteObject(params, (err, data) => {
-      if (err) {
-        console.error("Error deleting file:", err);
-        alert("Failed to delete file: " + err.message);
-      } else {
-        // Remove from local state
-        setFiles(prev => prev.filter(f => f.id !== file.id));
-      }
-    });
   };
 
   const formatBytes = (bytes, decimals = 2) => {

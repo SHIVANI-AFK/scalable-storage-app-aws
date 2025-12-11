@@ -5,7 +5,7 @@ import { useFileService } from '../hooks/useFileService';
 
 const AllFilesPage = () => {
   const { s3, BUCKET_NAME, user } = useAuth();
-  const { fetchFiles, loading: apiLoading } = useFileService();
+  const { fetchFiles, deleteFile, loading: apiLoading } = useFileService();
   const [viewMode, setViewMode] = useState('grid');
   const [files, setFiles] = useState([]);
   const [allFiles, setAllFiles] = useState([]); // Store all files from API
@@ -15,11 +15,43 @@ const AllFilesPage = () => {
   const [selectedFile, setSelectedFile] = useState(null);
 
   useEffect(() => {
-    // Initialize currentPrefix to empty string for relative navigation
-    if (user && currentPrefix === '') {
-      setCurrentPrefix('');
+    // Initialize currentPrefix to userPath
+    if (user && user.userPath && (currentPrefix === '' || !currentPrefix.startsWith(user.userPath))) {
+      setCurrentPrefix(user.userPath);
     }
   }, [user]);
+
+  const handleBackClick = () => {
+    if (!currentPrefix || currentPrefix === user?.userPath) return;
+
+    const parts = currentPrefix.split('/').filter(Boolean);
+    parts.pop();
+    // Reconstruct path. If parts is empty, it means root, but we should respect userPath.
+    // However, if we are popping from userPath, we shouldn't.
+
+    const newPrefix = parts.length > 0 ? parts.join('/') + '/' : '';
+
+    // Ensure we don't go above userPath
+    if (user?.userPath && newPrefix.length < user.userPath.length) {
+      setCurrentPrefix(user.userPath);
+    } else {
+      setCurrentPrefix(newPrefix);
+    }
+  };
+
+  const handleFileClick = (file) => {
+    if (file.type === 'folder') {
+      setCurrentPrefix(file.prefix);
+    } else {
+      // For files, we use the pre-generated URL from processFiles
+      // or we could regenerate it here if needed.
+      setSelectedFile(file);
+    }
+  };
+
+  const closeModal = () => {
+    setSelectedFile(null);
+  };
 
   useEffect(() => {
     if (user) {
@@ -129,7 +161,7 @@ const AllFilesPage = () => {
           isPdf,
           isText,
           url,
-          key: f.name
+          key: f.key || f.name
         });
       }
     });
@@ -149,32 +181,34 @@ const AllFilesPage = () => {
     e.stopPropagation();
     if (!window.confirm(`Are you sure you want to delete "${file.name}"?`)) return;
 
-    if (!s3 || !user?.userPath) {
-      alert("Unable to delete: S3 not initialized or user path missing.");
-      return;
+    try {
+      // Use the key from the file object (normalized in useFileService)
+      // If file.key is not available, fallback to constructing it or using name
+      // But fetchFiles now ensures 'key' property exists.
+
+      const fileKey = file.key || file.id; // file.id was set to f.name or prefix+name in processFiles
+
+      // Wait, processFiles creates new objects. I need to make sure I pass the correct key.
+      // In processFiles:
+      // items.push({ ..., key: f.name (which was the original name/key from API) })
+      // But wait, fetchFiles now returns objects with a 'key' property.
+      // In processFiles, 'f' is the object from fetchFiles.
+      // So f.key should be the correct S3 key.
+
+      // Let's check processFiles again.
+      // It uses f.name.
+      // I should update processFiles to use f.key if available for the 'key' property of the item.
+
+      await deleteFile(file.key);
+
+      // Remove from local state
+      setAllFiles(prev => prev.filter(f => f.key !== file.key));
+      setFiles(prev => prev.filter(f => f.key !== file.key));
+
+    } catch (err) {
+      console.error("Error deleting file:", err);
+      alert("Failed to delete file: " + err.message);
     }
-
-    let fullKey = file.key; // file.key is the original name from API
-    if (!fullKey.startsWith(user.userPath)) {
-      fullKey = user.userPath + fullKey;
-    }
-
-    const params = {
-      Bucket: BUCKET_NAME,
-      Key: fullKey
-    };
-
-    s3.deleteObject(params, (err, data) => {
-      if (err) {
-        console.error("Error deleting file:", err);
-        alert("Failed to delete file: " + err.message);
-      } else {
-        // Remove from local state
-        setAllFiles(prev => prev.filter(f => f.name !== file.key));
-        // The useEffect will re-process files, but we can also update 'files' directly for immediate feedback if needed.
-        // But since allFiles triggers processFiles, it should be enough.
-      }
-    });
   };
 
   const formatBytes = (bytes, decimals = 2) => {
@@ -298,13 +332,15 @@ const AllFilesPage = () => {
                     >
                       <td className="file-name-cell">
                         <div className="name-wrapper">
-                          {file.type === 'folder' ? (
-                            <Folder size={16} fill="#4F46E5" color="#4F46E5" />
-                          ) : file.isImage ? (
-                            <ImageIcon size={16} color="#6B7280" />
-                          ) : (
-                            <FileText size={16} color="#6B7280" />
-                          )}
+                          <div className="list-icon-container">
+                            {file.type === 'folder' ? (
+                              <Folder size={20} fill="#4F46E5" color="#4F46E5" />
+                            ) : file.isImage ? (
+                              <ImageIcon size={20} color="#4F46E5" />
+                            ) : (
+                              <FileText size={20} color="#4F46E5" />
+                            )}
+                          </div>
                           {file.name}
                         </div>
                       </td>
@@ -497,6 +533,16 @@ const AllFilesPage = () => {
             background-size: cover;
             background-position: center;
             border-radius: 6px;
+        }
+
+        .list-icon-container {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #EEF2FF;
+            border-radius: 8px;
         }
 
         .more-btn {
