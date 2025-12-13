@@ -1,0 +1,79 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: File Sharing API (API Gateway + Lambda + S3)
+
+Parameters:
+  StageName:
+    Type: String
+    Default: prod
+  BucketName:
+    Type: String
+    Default: scalable-storage-files-us1
+
+Resources:
+  FilesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  FilesApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref StageName
+      Cors:
+        AllowMethods: "'GET,POST,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowOrigin: "'*'"
+
+  FilesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref FilesBucket
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref FilesBucket
+      Events:
+        ListFiles:
+          Type: Api
+          Properties:
+            RestApiId: !Ref FilesApi
+            Path: /files
+            Method: GET
+        CreateUploadUrl:
+          Type: Api
+          Properties:
+            RestApiId: !Ref FilesApi
+            Path: /files/upload-url
+            Method: POST
+        CreateDownloadUrl:
+          Type: Api
+          Properties:
+            RestApiId: !Ref FilesApi
+            Path: /files/download-url
+            Method: POST
+        DeleteFile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref FilesApi
+            Path: /files
+            Method: DELETE
+
+Outputs:
+  ApiUrl:
+    Value: !Sub "https://${FilesApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}"
+  Bucket:
+    Value: !Ref FilesBucket
