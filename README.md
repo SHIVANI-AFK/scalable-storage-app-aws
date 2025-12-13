@@ -1,3 +1,16 @@
+This project implements a scalable file storage backend on AWS.
+The initial infrastructure template was adapted from a reference project.
+All backend logic, AWS deployment, and testing were completed independently.
+
+
+
+
+
+
+
+
+
+
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
